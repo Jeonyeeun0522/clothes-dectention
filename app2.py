@@ -1,65 +1,29 @@
 import cv2
+import av
 import torch
 import numpy as np
 import streamlit as st
-from PIL import Image
+from ultralytics import YOLO
+from streamlit_webrtc import webrtc_streamer, VideoProcessorBase
 
-import pathlib
-pathlib.PosixPath = pathlib.WindowsPath
+# 모델 로드
+model = YOLO("best.pt")  
 
-@st.cache_resource
-def load_model():
-    # Custom YOLOv5 model load
-    model = torch.hub.load('ultralytics/yolov8', 'custom', path='best.pt', force_reload=True)
-    model.eval()
-    return model
+class YOLOVideoProcessor(VideoProcessorBase):
+    def recv(self, frame):
+        img = frame.to_ndarray(format="bgr24")  # 프레임을 OpenCV 형식으로 변환
 
-def predict(frame, model):
-    # Run prediction
-    results = model(frame)
-    return results
 
-def draw_boxes(results, frame):
-    """
-    Draw bounding boxes with different colors for each class.
-    """
-    COLORS = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255), (0, 255, 255)]  # Color palette
-    
-    for *xyxy, conf, cls in results.xyxy[0]:
-        x1, y1, x2, y2 = map(int, xyxy)
-        color = COLORS[int(cls) % len(COLORS)]  # Assign a color to each class
-        label = f"{results.names[int(cls)]} {conf:.2f}"
+        results = model(img, conf=0.5)
 
-        # Draw bounding box
-        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 3)  # Thicker box
-        
-        # Draw label with a transparent background
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        (text_width, text_height), baseline = cv2.getTextSize(label, font, 0.6, 1)
-        overlay = frame.copy()
-        cv2.rectangle(overlay, (x1, y1 - text_height - baseline), (x1 + text_width, y1), color, -1)
-        cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)  # Transparency effect
-        cv2.putText(frame, label, (x1, y1 - baseline), font, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
-    return frame
+        # 결과 그리기
+        if results and results[0]:
+            img = results[0].plot()
 
+        return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 st.title("👚 이건 무슨 옷이야? 🩳")
+st.write("📹웹캠을 통해 실시간으로 지금 입고 있는 옷의 종류를 알려드릴게요.")
 
 
-model = load_model()
-uploaded_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
-
-if uploaded_file is not None:
-    with st.spinner("Processing..."):
-       
-        pil_image = Image.open(uploaded_file).convert("RGB")
-        np_image = np.array(pil_image)
-        cv_image = cv2.cvtColor(np_image, cv2.COLOR_RGB2BGR)
-
-      
-        results = predict(cv_image, model)
-        
-        image_with_boxes = draw_boxes(results, cv_image)
-        
-        st.image(image_with_boxes, channels="BGR")
-
+webrtc_streamer(key="yolo", video_processor_factory=YOLOVideoProcessor)
