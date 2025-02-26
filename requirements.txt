@@ -1,5 +1,5 @@
 ultralytics
-opencv-python
+opencv-python-handless
 streamlit
 streamlit-webrtc
 torch
