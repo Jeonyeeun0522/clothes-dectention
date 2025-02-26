@@ -10,7 +10,7 @@ pathlib.PosixPath = pathlib.WindowsPath
 @st.cache_resource
 def load_model():
     # Custom YOLOv5 model load
-    model = torch.hub.load('ultralytics/yolov5', 'custom', path='best.pt', force_reload=True)
+    model = torch.hub.load('ultralytics/yolov8', 'custom', path='best.pt', force_reload=True)
     model.eval()
     return model
 
